@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣山羊古鎖 - 跨文化互動工藝模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Serif TC', serif;
+            background: #120e0a;
+            color: #f3eae1;
+            touch-action: pan-y; 
+            overflow-x: hidden;
+            padding-bottom: 80px;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1c1510; }
+        ::-webkit-scrollbar-thumb { background: #5c4331; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #876247; }
+        .wood-pattern {
+            background-color: #1c1510;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0),
+                              linear-gradient(to right, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%);
+        }
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 2px rgba(212, 163, 89, 0.4)); }
+            50% { filter: drop-shadow(0 0 12px rgba(212, 163, 89, 0.8)); }
+        }
+        .interactive-pulse { animation: pulse-glow 2s infinite; }
+        
+        @keyframes shackle-hint {
+            0%, 100% { filter: drop-shadow(0 0 2px rgba(56, 189, 248, 0.4)); }
+            50% { filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9)); }
+        }
+        .shackle-ready { animation: shackle-hint 1.5s infinite; cursor: grab; }
+        .shackle-grabbing { cursor: grabbing !important; }
+
+        @keyframes particleFly {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+        .particle { position: absolute; border-radius: 50%; pointer-events: none; animation: particleFly 1.5s ease-out forwards; }
+
+        /* ========= 桌寵小羊專屬動畫 (修復解體問題) ========= */
+        .leg { transform-origin: 0px 0px; transition: transform 0.1s; }
+        @keyframes run-a {
+            0%, 100% { transform: rotate(-25deg); }
+            50% { transform: rotate(25deg); }
+        }
+        @keyframes run-b {
+            0%, 100% { transform: rotate(25deg); }
+            50% { transform: rotate(-25deg); }
+        }
+        @keyframes body-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        
+        /* 奔跑狀態 */
+        .pet-running .leg-a { animation: run-a 0.35s infinite linear; }
+        .pet-running .leg-b { animation: run-b 0.35s infinite linear; }
+        .pet-running #goat-all { animation: body-bounce 0.35s infinite linear; }
+        
+        /* 吃草狀態 - 移除了 translate，改由外層 g 標籤控制定位 */
+        .pet-head { transform-origin: 0px 0px; transition: transform 0.4s ease-in-out; transform: rotate(0deg); }
+        .pet-eating .pet-head { transform: rotate(35deg) translate(2px, 8px); }
+        
+        /* 點擊跳躍 */
+        .pet-jump { transform: translateY(-30px); transition: transform 0.2s ease-out; }
+    </style>
+</head>
+<body class="wood-pattern min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <header class="border-b border-yellow-900/30 bg-black/40 backdrop-blur-md px-4 py-3 sm:px-6 sm:py-4 z-20 relative">
+        <div class="max-w-7xl mx-auto flex flex-col xl:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3 w-full xl:w-auto">
+                <span class="text-3xl">🔑</span>
+                <div>
+                    <h1 id="ui-title" class="text-xl sm:text-2xl font-bold text-amber-100 tracking-wider">台灣山羊古鎖 <span class="text-amber-500/70 text-lg">× 南洋工藝</span></h1>
+                    <p id="ui-subtitle" class="text-xs text-amber-500/80 font-mono">Taiwan Serow & Indonesian Heritage Lock Simulator</p>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap items-center justify-center xl:justify-end gap-2 w-full xl:w-auto">
+                <button id="btn-lang" class="px-3 py-1.5 rounded-lg border border-indigo-900/60 bg-indigo-950/30 text-[11px] sm:text-xs text-indigo-200 hover:bg-indigo-900/50 transition-all font-bold tracking-wide shadow-lg">
+                    🌐 語言: 繁中
+                </button>
+                <div class="w-px h-6 bg-yellow-900/50 mx-1 hidden sm:block"></div>
+                <button id="btn-sound" class="px-3 py-1.5 rounded-lg border border-yellow-800/50 bg-yellow-950/20 text-[11px] sm:text-xs text-amber-200 hover:bg-yellow-950/50 transition-all">
+                    🔊 操作音: 開
+                </button>
+                <button id="btn-xray" class="px-3 py-1.5 rounded-lg border border-amber-600 bg-amber-950/40 text-[11px] sm:text-xs text-amber-100 font-semibold hover:bg-amber-900/50 transition-all">
+                    👁️ 內部透視
+                </button>
+                <button id="btn-reset" class="px-3 py-1.5 rounded-lg border border-red-900/60 bg-red-950/20 text-[11px] sm:text-xs text-red-200 hover:bg-red-950/40 transition-all">
+                    🔄 重置
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-grow relative z-10">
+        
+        <div class="lg:col-span-3 flex flex-col gap-4">
+            
+            <div class="bg-gradient-to-br from-amber-950/40 to-black/60 border border-amber-500/40 p-4 rounded-xl backdrop-blur-sm relative overflow-hidden shadow-lg">
+                <div class="absolute -right-4 -top-4 text-6xl opacity-10 rotate-12">🌊</div>
+                <h3 class="text-sm font-bold text-amber-300 mb-2 flex items-center gap-1.5">
+                    <span>💡</span> <span id="ui-concept-title">設計靈感來源</span>
+                </h3>
+                <p id="ui-concept-0" class="text-[11px] text-amber-100/80 leading-relaxed mb-3">
+                    本裝置完美復刻台灣山羊古鎖的青銅質感與傳統構造，並結合印尼皇室蠟染圖騰 (Batik)。
+                </p>
+                <div class="border-l-2 border-amber-500 pl-2 text-[11px] text-amber-300/70 space-y-2">
+                    <p id="ui-concept-1"><b class='text-amber-400'>🐐 台灣野山羊</b>：特有種，具強大攀登能力，象徵堅韌與攀向高峰。</p>
+                    <p id="ui-concept-2"><b class='text-amber-400'>🌊 破浪紋 (Parang)</b>：S型幾何海浪，象徵不屈不撓，與山羊攀登峭壁的堅韌完美呼應。</p>
+                    <p id="ui-concept-3"><b class='text-amber-400'>🌸 棕櫚紋 (Kawung)</b>：十字交錯的橢圓，象徵純潔、圓滿。賦予古鎖鎖住平安的祝福。</p>
+                </div>
+            </div>
+
+            <div class="bg-black/40 border border-yellow-950/60 p-4 rounded-xl flex-grow shadow-lg">
+                <h2 id="ui-guide-title" class="text-base font-bold text-amber-200 mb-3 border-b border-amber-950 pb-2">🔓 解鎖步驟指引</h2>
+                <div class="space-y-4">
+                    <div id="step-1-card" class="flex gap-3 items-start transition-all duration-300 border-l-2 border-amber-500 pl-2">
+                        <span class="bg-amber-500/20 text-amber-300 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</span>
+                        <div><h4 id="ui-step1-title" class="text-xs font-bold text-amber-100">將鑰匙拖入鎖孔</h4></div>
+                    </div>
+                    <div id="step-2-card" class="flex gap-3 items-start opacity-40 transition-all duration-300 pl-2">
+                        <span class="bg-yellow-950 text-amber-500/50 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
+                        <div><h4 id="ui-step2-title" class="text-xs font-bold text-amber-200">向內推入，壓縮簧片</h4></div>
+                    </div>
+                    <div id="step-3-card" class="flex gap-3 items-start opacity-40 transition-all duration-300 pl-2">
+                        <span class="bg-yellow-950 text-amber-500/50 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</span>
+                        <div><h4 id="ui-step3-title" class="text-xs font-bold text-amber-200">向左拖曳，拉開鎖樑</h4></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-6 flex flex-col gap-4 relative">
+            <div class="relative flex-grow min-h-[420px] bg-amber-995/10 rounded-2xl border-2 border-yellow-900/40 overflow-hidden shadow-2xl flex flex-col justify-between p-4" id="workbench">
+                <div class="absolute inset-0 opacity-10 pointer-events-none select-none">
+                    <div class="absolute top-10 left-10 text-6xl">📜</div>
+                    <div class="absolute bottom-10 right-10 text-6xl">🏮</div>
+                </div>
+
+                <div class="z-10 flex justify-between items-center bg-black/50 p-2 rounded-lg border border-yellow-950/40 text-xs">
+                    <span class="text-amber-400 font-semibold flex items-center gap-1.5">
+                        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                        <span id="ui-status">狀態: 鎖定中 (Locked)</span>
+                    </span>
+                    <span class="text-amber-500/60 font-mono text-[10px] hidden sm:block">Parallax & Haptics: Active</span>
+                </div>
+
+                <div class="flex-grow flex items-center justify-center py-4 relative w-full h-full">
+                    <svg id="lock-svg" viewBox="0 0 800 400" class="w-full h-full max-h-[360px] drop-shadow-2xl z-10" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="material-base" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop id="mat-s1" offset="0%" stop-color="#4a3b2c" />
+                                <stop id="mat-s2" offset="25%" stop-color="#735c45" />
+                                <stop id="mat-s3" offset="50%" stop-color="#8c735c" />
+                                <stop id="mat-s4" offset="75%" stop-color="#5c4a37" />
+                                <stop id="mat-s5" offset="100%" stop-color="#2d2217" />
+                            </linearGradient>
+
+                            <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#bf953f" />
+                                <stop offset="25%" stop-color="#fcf6ba" />
+                                <stop offset="50%" stop-color="#b38728" />
+                                <stop offset="75%" stop-color="#fbf5b7" />
+                                <stop offset="100%" stop-color="#aa771c" />
+                            </linearGradient>
+                            
+                            <linearGradient id="iron" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#3a3d40" />
+                                <stop offset="50%" stop-color="#181a1b" />
+                                <stop offset="100%" stop-color="#3a3d40" />
+                            </linearGradient>
+
+                            <linearGradient id="shine-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="rgba(255,255,255,0)" />
+                                <stop offset="50%" stop-color="rgba(255,240,200,0.15)" />
+                                <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+                            </linearGradient>
+
+                            <pattern id="batik-parang" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45) scale(0.85)">
+                                <path d="M 0,20 C 10,0 30,40 40,20" fill="none" stroke="url(#gold)" stroke-width="4.5" stroke-linecap="round"/>
+                                <path d="M -10,10 C 0,-10 20,30 30,10" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.6"/>
+                                <path d="M 10,30 C 20,10 40,50 50,30" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.6"/>
+                                <polygon points="20,15 25,20 20,25 15,20" fill="#fcf6ba" opacity="0.9"/>
+                            </pattern>
+
+                            <pattern id="batik-kawung" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="scale(0.85)">
+                                <circle cx="15" cy="0" r="12" fill="none" stroke="url(#gold)" stroke-width="2"/>
+                                <circle cx="15" cy="30" r="12" fill="none" stroke="url(#gold)" stroke-width="2"/>
+                                <circle cx="0" cy="15" r="12" fill="none" stroke="url(#gold)" stroke-width="2"/>
+                                <circle cx="30" cy="15" r="12" fill="none" stroke="url(#gold)" stroke-width="2"/>
+                                <polygon points="15,12 18,15 15,18 12,15" fill="#fcf6ba" opacity="0.9"/>
+                            </pattern>
+
+                            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                                <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.6"/>
+                            </filter>
+                            
+                            <mask id="lock-mask">
+                                <path d="M 220,180 C 200,180 160,200 160,250 C 160,300 200,320 260,320 C 300,320 340,310 370,300 C 370,250 350,200 320,180 Z" fill="white"/>
+                            </mask>
+                        </defs>
+
+                        <ellipse id="px-shadow" cx="400" cy="310" rx="320" ry="25" fill="#000" opacity="0.5" filter="blur(10px)" />
+
+                        <g id="lock-body-group" filter="url(#shadow)">
+                            
+                            <g id="px-base">
+                                <path d="M 220,180 C 200,180 160,200 160,250 C 160,300 200,320 260,320 C 300,320 340,310 370,300 C 370,250 350,200 320,180 Z" fill="url(#material-base)" stroke="#1a120b" stroke-width="2"/>
+                                <path d="M 170,280 C 160,290 170,315 200,315 C 230,315 240,300 240,280 C 220,280 180,270 170,280 Z" fill="url(#material-base)" stroke="#1a120b" stroke-width="1.5"/>
+                                <path d="M 330,300 C 340,310 365,315 380,315 C 390,315 390,305 375,295 Z" fill="url(#material-base)" stroke="#1a120b" stroke-width="1.5"/>
+                            </g>
+
+                            <g id="px-pattern">
+                                <path class="pattern-fill-target transition-opacity duration-700" data-op="0.85" d="M 220,180 C 200,180 160,200 160,250 C 160,300 200,320 260,320 C 300,320 340,310 370,300 C 370,250 350,200 320,180 Z" fill="url(#batik-parang)" style="opacity: 0.85;" />
+                                <path class="pattern-fill-target transition-opacity duration-700" data-op="0.8" d="M 170,280 C 160,290 170,315 200,315 C 230,315 240,300 240,280 C 220,280 180,270 170,280 Z" fill="url(#batik-parang)" style="opacity: 0.8;"/>
+                                <path class="pattern-fill-target transition-opacity duration-700" data-op="0.8" d="M 330,300 C 340,310 365,315 380,315 C 390,315 390,305 375,295 Z" fill="url(#batik-parang)" style="opacity: 0.8;"/>
+                            </g>
+
+                            <g id="px-shackle-mount">
+                                <rect x="250" y="100" width="40" height="210" rx="10" fill="url(#material-base)" stroke="#1c140c" stroke-width="3"/>
+                                <rect x="430" y="100" width="50" height="210" rx="10" fill="url(#material-base)" stroke="#1c140c" stroke-width="3"/>
+                            </g>
+
+                            <g mask="url(#lock-mask)" id="px-shine">
+                                <rect x="-100" y="100" width="80" height="300" fill="url(#shine-grad)" transform="skewX(-20)">
+                                    <animate attributeName="x" values="-200; 600; -200" dur="8s" repeatCount="indefinite" />
+                                </rect>
+                            </g>
+
+                            <g id="px-internal">
+                                <rect id="internal-chamber" x="290" y="195" width="140" height="105" fill="#15100c" stroke="#332215" stroke-width="3" />
+                                <g id="internal-springs" class="transition-all duration-300">
+                                    <line x1="280" y1="248" x2="435" y2="248" stroke="#444" stroke-width="10" stroke-linecap="round"/>
+                                    <g id="spring-leaves-group">
+                                        <path id="spring-top" d="M 390,248 C 360,248 315,225 305,225 C 295,225 295,248 300,248" fill="none" stroke="url(#gold)" stroke-width="5" stroke-linecap="round"/>
+                                        <path id="spring-bottom" d="M 390,248 C 360,248 315,271 305,271 C 295,271 295,248 300,248" fill="none" stroke="url(#gold)" stroke-width="5" stroke-linecap="round"/>
+                                        <rect x="385" y="238" width="15" height="20" rx="2" fill="url(#gold)"/>
+                                    </g>
+                                </g>
+                            </g>
+
+                            <g id="px-front-plate">
+                                <rect id="brass-plate" x="280" y="190" width="160" height="115" rx="15" fill="url(#gold)" stroke="#593e1a" stroke-width="3" />
+                                <g id="plate-carvings">
+                                    <rect x="286" y="196" width="148" height="103" rx="10" fill="none" stroke="#805924" stroke-width="1.5" stroke-dasharray="8 4"/>
+                                    <text id="svg-plate-title" x="360" y="218" font-family="'Noto Serif TC', serif" font-weight="bold" font-size="14" fill="#593e1a" text-anchor="middle" letter-spacing="4">台灣山羊</text>
+                                    <text id="svg-plate-bl" x="315" y="260" font-family="'Noto Serif TC', serif" font-size="11" fill="#735020" text-anchor="middle">吉</text>
+                                    <text id="svg-plate-br" x="315" y="280" font-family="'Noto Serif TC', serif" font-size="11" fill="#735020" text-anchor="middle">祥</text>
+                                    <text id="svg-plate-tl" x="405" y="260" font-family="'Noto Serif TC', serif" font-size="11" fill="#735020" text-anchor="middle">如</text>
+                                    <text id="svg-plate-tr" x="405" y="280" font-family="'Noto Serif TC', serif" font-size="11" fill="#735020" text-anchor="middle">意</text>
+                                    <path d="M 295,235 Q 300,230 305,235 T 315,235" fill="none" stroke="#a67c38" stroke-width="1"/>
+                                    <path d="M 410,235 Q 415,230 420,235 T 430,235" fill="none" stroke="#a67c38" stroke-width="1"/>
+                                </g>
+                                <g id="keyhole-group">
+                                    <rect x="345" y="235" width="30" height="32" rx="4" fill="#1a1108" stroke="#593e1a" stroke-width="2"/>
+                                    <path d="M 353,248 L 367,248 M 360,248 L 360,262" stroke="#000" stroke-width="6" stroke-linecap="round"/>
+                                </g>
+                            </g>
+
+                            <g id="px-goat-head" transform="translate(420, 70)">
+                                <path d="M 15,100 C 15,140 45,180 80,170 C 95,130 90,90 70,80 Z" fill="url(#material-base)" stroke="#1c140c" stroke-width="2"/>
+                                <path class="pattern-fill-target transition-opacity duration-700" data-op="0.6" d="M 15,100 C 15,140 45,180 80,170 C 95,130 90,90 70,80 Z" fill="url(#batik-parang)" style="opacity: 0.6;"/>
+                                <path d="M 35,115 C 30,130 40,140 50,155" fill="none" stroke="#3d2f21" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M 45,110 C 40,125 55,135 60,150" fill="none" stroke="#3d2f21" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M 25,65 C 20,40 60,10 95,35 C 115,50 125,75 110,95 C 90,110 50,105 25,65 Z" fill="url(#material-base)" stroke="#1c140c" stroke-width="2"/>
+                                <path class="pattern-fill-target transition-opacity duration-700" data-op="0.6" d="M 25,65 C 20,40 60,10 95,35 C 115,50 125,75 110,95 C 90,110 50,105 25,65 Z" fill="url(#batik-parang)" style="opacity: 0.6;"/>
+                                <path d="M 90,65 C 105,75 125,75 120,95 C 115,100 100,105 90,95 Z" fill="#2d2217" stroke="#1c140c" stroke-width="1.5"/>
+                                <ellipse cx="112" cy="88" rx="2" ry="3" fill="#0c0703" transform="rotate(15, 112, 88)"/>
+                                <path d="M 90,98 C 85,120 95,145 92,155 C 90,140 80,120 82,102 Z" fill="#4d3b2b" stroke="#1c140c" stroke-width="1.5"/>
+                                
+                                <path d="M 40,30 C 20,5 -10,-10 -40,-5 C -45,-3 -43,-1 -35,5 C -10,10 15,20 30,40 Z" fill="url(#material-base)" stroke="#110c08" stroke-width="2"/>
+                                <path d="M 52,35 C 40,10 15,0 -15,0 C -20,2 -18,4 -10,8 C 10,12 30,22 42,42 Z" fill="url(#material-base)" stroke="#110c08" stroke-width="2"/>
+                                <path d="M 25,18 Q 23,12 28,14 M 15,11 Q 13,5 18,7 M 5,7 Q 3,1 8,3 M -5,5 Q -7,-1 -2,1 M -15,5 Q -17,0 -12,2 M -25,5 Q -27,0 -22,2" fill="none" stroke="#261b11" stroke-width="3"/>
+                                <path d="M 35,24 Q 33,18 38,20 M 27,15 Q 25,9 30,11 M 17,9 Q 15,3 20,5 M 7,5 Q 5,-1 10,1 M -3,3 Q -5,-3 0,-1 M -13,3 Q -15,-3 -10,-1" fill="none" stroke="#261b11" stroke-width="3" transform="translate(10, 5)"/>
+                                
+                                <path d="M 28,52 C 10,50 0,65 5,72 C 12,74 20,65 26,58 Z" fill="#3a2e22" stroke="#1c140c" stroke-width="1.5"/>
+                                <path d="M 25,54 C 12,52 5,63 10,68" fill="#54331d"/>
+                                <ellipse cx="75" cy="62" rx="9" ry="6" fill="#110c08" transform="rotate(-15, 75, 62)"/>
+                                <ellipse cx="75" cy="62" rx="7" ry="4.5" fill="url(#gold)" transform="rotate(-15, 75, 62)"/>
+                                <ellipse cx="75" cy="62" rx="4" ry="4" fill="#000"/>
+                                <circle cx="77" cy="60" r="1.5" fill="#fff"/>
+                            </g>
+                        </g>
+
+                        <g id="hotspots" class="opacity-100 transition-opacity duration-300">
+                            <circle cx="480" cy="90" r="14" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="2" class="cursor-pointer animate-pulse" stroke-dasharray="4 2" data-info="horn"/>
+                            <text x="480" y="94" font-size="10" fill="#fff" text-anchor="middle" class="pointer-events-none">i</text>
+                            
+                            <circle cx="210" cy="240" r="14" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="2" class="cursor-pointer animate-pulse" stroke-dasharray="4 2" data-info="belly"/>
+                            <text x="210" y="244" font-size="10" fill="#fff" text-anchor="middle" class="pointer-events-none">i</text>
+                            
+                            <circle cx="360" cy="220" r="14" fill="rgba(56,189,248,0.2)" stroke="#38bdf8" stroke-width="2" class="cursor-pointer animate-pulse" stroke-dasharray="4 2" data-info="keyhole"/>
+                            <text x="360" y="224" font-size="10" fill="#fff" text-anchor="middle" class="pointer-events-none">i</text>
+                        </g>
+
+                        <g id="shackle-group-wrapper">
+                            <g id="shackle-group" transform="translate(0, 0)" filter="url(#shadow)">
+                                <rect x="230" y="112" width="245" height="24" rx="8" fill="url(#iron)" stroke="#0c0f12" stroke-width="2"/>
+                                <rect x="215" y="102" width="20" height="44" rx="5" fill="url(#material-base)" stroke="#1c140c" stroke-width="2"/>
+                                <circle cx="225" cy="124" r="5" fill="#111" />
+                                <path id="shackle-internal-connector" d="M 270,136 L 270,248 L 390,248" fill="none" stroke="url(#iron)" stroke-width="12" stroke-linecap="round" opacity="0.1"/>
+                            </g>
+                        </g>
+
+                        <g id="key-group-wrapper">
+                            <g id="key-group" transform="translate(560, 210)" class="interactive-pulse" style="cursor: grab;">
+                                <rect x="-10" y="32" width="130" height="12" rx="3" fill="url(#iron)" stroke="#111" stroke-width="1.5"/>
+                                <path d="M -15,22 L -10,22 L -10,54 L -15,54 C -22,48 -22,28 -15,22 Z" fill="url(#gold)" stroke="#593e1a" stroke-width="1.5"/>
+                                <rect x="-24" y="32" width="15" height="12" rx="2" fill="url(#gold)" stroke="#593e1a" stroke-width="1.5"/>
+                                <rect x="-18" y="36" width="10" height="4" fill="#1a1108" />
+                                <g id="key-handle" transform="translate(145, 38)">
+                                    <circle cx="0" cy="0" r="28" fill="url(#gold)" stroke="#593e1a" stroke-width="2" filter="url(#shadow)"/>
+                                    <circle cx="0" cy="0" r="21" fill="none" stroke="#805924" stroke-width="1.5"/>
+                                    <path d="M -12,-12 L 12,12 M -12,12 L 12,-12 M -15,0 L 15,0 M 0,-15 L 0,15" stroke="#593e1a" stroke-width="2.5" stroke-linecap="round"/>
+                                    <path d="M -8,-8 L 8,8 M -8,8 L 8,-8" stroke="#fcf6ba" stroke-width="1" stroke-linecap="round"/>
+                                    <circle cx="0" cy="0" r="6" fill="#593e1a" />
+                                    <circle cx="0" cy="0" r="3" fill="#fcf6ba" />
+                                </g>
+                            </g>
+                        </g>
+                    </svg>
+
+                    <div id="hotspot-tooltip" class="absolute pointer-events-none opacity-0 transition-all duration-300 bg-black/80 backdrop-blur-md border border-amber-500/50 p-3 rounded-lg max-w-[200px] z-20 shadow-2xl transform scale-95 translate-y-4">
+                        <div class="text-amber-400 text-[10px] font-bold mb-1 border-b border-amber-500/30 pb-1" id="tooltip-title">標題</div>
+                        <p class="text-[10px] text-amber-100/90 leading-relaxed" id="tooltip-desc">描述內容</p>
+                    </div>
+                </div>
+
+                <div class="bg-black/60 p-4 rounded-xl border border-yellow-950/40 z-20 space-y-3 shadow-lg">
+                    <div class="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div class="w-full sm:w-1/2">
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span id="ui-slider-key" class="text-amber-300 font-medium">🔑 鑰匙插入深度:</span>
+                                <span id="lbl-key-pos" class="font-mono text-amber-500">0%</span>
+                            </div>
+                            <input type="range" id="slider-key" min="0" max="100" value="0" class="w-full h-2 bg-yellow-950 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        </div>
+                        <div class="w-full sm:w-1/2">
+                            <div class="flex justify-between text-[11px] mb-1">
+                                <span id="ui-slider-lock" class="text-amber-300 font-medium">🔓 鎖樑拉開距離:</span>
+                                <span id="lbl-shackle-pos" class="font-mono text-amber-500">0%</span>
+                            </div>
+                            <input type="range" id="slider-shackle" min="0" max="100" value="0" disabled class="w-full h-2 bg-yellow-950 rounded-lg appearance-none cursor-not-allowed opacity-40 accent-amber-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="lg:col-span-3 flex flex-col gap-4 z-20">
+             <div class="bg-black/60 border border-yellow-900/50 p-4 rounded-xl flex flex-col justify-start backdrop-blur-sm shadow-xl">
+                 <h3 id="ui-ws-title" class="text-sm font-bold text-amber-400 mb-4 border-b border-yellow-900/70 pb-2 flex items-center gap-2">
+                     🎨 客製化工坊 (Workshop)
+                 </h3>
+
+                 <div class="mb-4 bg-yellow-950/20 p-3 rounded-lg border border-yellow-900/30">
+                     <label id="ui-ws-3d" class="text-[11px] font-semibold text-amber-200 mb-2 block flex justify-between">
+                         <span>3D 視角旋轉 (Parallax View)</span>
+                         <span id="lbl-parallax" class="text-amber-500 font-mono">0°</span>
+                     </label>
+                     <input type="range" id="slider-parallax" min="-50" max="50" value="0" class="w-full h-1.5 bg-black rounded-lg appearance-none cursor-pointer accent-amber-500">
+                 </div>
+
+                 <div class="mb-4">
+                     <label id="ui-ws-mat" class="text-[11px] font-semibold text-amber-200 mb-1.5 block">鎖身材質 (Material)</label>
+                     <select id="select-material" class="w-full bg-black/80 border border-yellow-800 text-amber-100 text-xs rounded-md p-2 focus:ring-1 focus:ring-amber-500 outline-none">
+                         <option value="bronze" id="opt-m-bronze">斑駁青銅 (Aged Bronze)</option>
+                         <option value="gold" id="opt-m-gold">皇室黃金 (Royal Gold)</option>
+                         <option value="iron" id="opt-m-iron">生鐵黑 (Forged Iron)</option>
+                     </select>
+                 </div>
+
+                 <div class="mb-4">
+                     <label id="ui-ws-pat" class="text-[11px] font-semibold text-amber-200 mb-1.5 block">鑲嵌圖騰 (Inlay Pattern)</label>
+                     <select id="select-pattern" class="w-full bg-black/80 border border-yellow-800 text-amber-100 text-xs rounded-md p-2 focus:ring-1 focus:ring-amber-500 outline-none">
+                         <option value="parang" id="opt-p-parang">Batik Parang (破浪紋)</option>
+                         <option value="kawung" id="opt-p-kawung">Batik Kawung (棕櫚十字紋)</option>
+                         <option value="none" id="opt-p-none">無圖騰 (Plain Metallic)</option>
+                     </select>
+                 </div>
+
+                 <div class="mt-2 pt-4 border-t border-yellow-900/40">
+                      <button id="btn-ambient" class="w-full py-2.5 bg-green-900/20 border border-green-800/50 text-green-200 font-semibold text-xs rounded-lg hover:bg-green-900/40 transition-all flex items-center justify-center gap-2">
+                          🐑 <span id="ui-btn-ambient">開啟羊群環境音 (Ambient Off)</span>
+                      </button>
+                 </div>
+             </div>
+
+             <div class="bg-black/40 border border-yellow-950/60 p-4 rounded-xl shadow-lg">
+                  <h3 class="text-sm font-bold text-amber-300 mb-2 border-b border-amber-950 pb-1 flex items-center gap-1.5">
+                      <span>⚙️</span> <span id="ui-mech-title">簧片鎖機械原理</span>
+                  </h3>
+                  <p id="ui-mech-desc" class="text-[11px] text-amber-100/70 leading-relaxed">
+                     傳統中式古鎖多為<b>「簧片結構」</b>。<br><br>當鎖樑插入鎖身時，尾端兩片具彈性的<b>黃銅簧片</b>會向外撐開，卡死在鎖腔內。解鎖時，插入鑰匙並向內推，鑰匙前端的特殊凹槽能把撐開的簧片「夾緊/收合」。簧片收合後，鎖樑便能抽出。
+                  </p>
+             </div>
+
+             <div class="bg-amber-950/10 border border-yellow-950/60 p-4 rounded-xl shadow-lg">
+                  <h3 class="text-sm font-bold text-amber-300 mb-2 border-b border-amber-950 pb-1 flex items-center gap-1.5">
+                      <span>⛰️</span> <span id="ui-feat-title">山羊古鎖工藝特點</span>
+                  </h3>
+                  <ul class="text-[11px] text-amber-200/80 space-y-2 leading-relaxed">
+                      <li><strong class="text-amber-400" id="ui-feat-1-t">一、向後彎曲角：</strong> <span id="ui-feat-1-d">鎖身龍頭般生動的山羊頭部，完美復刻其終身不脫落的錐狀雙角。</span></li>
+                      <li><strong class="text-amber-400" id="ui-feat-2-t">二、吉祥如意雕花：</strong> <span id="ui-feat-2-d">鎖身飾以傳統銘文與紋樣，象徵長壽吉祥，具鎖住好運之意。</span></li>
+                  </ul>
+             </div>
+        </div>
+    </main>
+
+    <div id="lawn" class="fixed bottom-0 left-0 w-full h-16 bg-gradient-to-t from-green-950 to-green-800 border-t border-green-700 z-30 pointer-events-none flex overflow-hidden shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+        <div class="w-full h-full opacity-30" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.2) 10px, rgba(0,0,0,0.2) 20px);"></div>
+    </div>
+    
+    <div id="grass-area" class="fixed bottom-16 left-0 w-full h-0 z-40 pointer-events-none"></div>
+
+    <!-- ========= 可愛版桌寵小羊 ========= -->
+    <div id="desktop-pet" class="fixed bottom-16 z-50 cursor-pointer flex flex-col items-center group drop-shadow-2xl" style="left: 50%; transform: translateX(-50%); margin-bottom: -15px;">
+        <div id="pet-tooltip" class="absolute -top-6 bg-black/80 text-amber-300 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-amber-500/50 whitespace-nowrap pointer-events-none z-50">
+            咩～點我！
+        </div>
+        
+        <div id="pet-wrapper" class="transition-transform duration-300 origin-bottom">
+            <svg id="pet-svg" viewBox="0 0 120 100" width="130" height="110" class="overflow-visible transition-transform duration-200">
+                <g id="goat-all">
+                    <!-- 後方兩腿 (顏色較深) -->
+                    <!-- 利用外層 g 控制位移，內層 g 控制旋轉，徹底解決解體問題 -->
+                    <g transform="translate(35, 65)">
+                        <g class="leg leg-b">
+                            <line x1="0" y1="0" x2="0" y2="18" stroke="#8C6239" stroke-width="7" stroke-linecap="round"/>
+                            <line x1="0" y1="12" x2="0" y2="18" stroke="#3E1C00" stroke-width="7" stroke-linecap="round"/>
+                        </g>
+                    </g>
+                    <g transform="translate(75, 65)">
+                        <g class="leg leg-a">
+                            <line x1="0" y1="0" x2="0" y2="18" stroke="#8C6239" stroke-width="7" stroke-linecap="round"/>
+                            <line x1="0" y1="12" x2="0" y2="18" stroke="#3E1C00" stroke-width="7" stroke-linecap="round"/>
+                        </g>
+                    </g>
+                    
+                    <!-- 圓潤的尾巴 -->
+                    <g transform="translate(25, 45)">
+                        <path d="M 0,0 Q -10,-10 -5,10 Z" fill="#D4A373"/>
+                    </g>
+
+                    <!-- 胖嘟嘟的身體 -->
+                    <rect x="25" y="35" width="60" height="36" rx="18" fill="#D4A373" stroke="#C28B5A" stroke-width="2"/>
+                    <!-- 淺色肚兜 -->
+                    <rect x="35" y="50" width="40" height="15" rx="7.5" fill="#FAEDCD" opacity="0.6"/>
+
+                    <!-- 前方兩腿 (顏色較亮) -->
+                    <g transform="translate(45, 65)">
+                        <g class="leg leg-a">
+                            <line x1="0" y1="0" x2="0" y2="20" stroke="#B88656" stroke-width="7" stroke-linecap="round"/>
+                            <line x1="0" y1="14" x2="0" y2="20" stroke="#5C2E0E" stroke-width="7" stroke-linecap="round"/>
+                        </g>
+                    </g>
+                    <g transform="translate(80, 65)">
+                        <g class="leg leg-b">
+                            <line x1="0" y1="0" x2="0" y2="20" stroke="#B88656" stroke-width="7" stroke-linecap="round"/>
+                            <line x1="0" y1="14" x2="0" y2="20" stroke="#5C2E0E" stroke-width="7" stroke-linecap="round"/>
+                        </g>
+                    </g>
+
+                    <!-- 可愛的大頭 (同樣內外層分離，不再脫臼) -->
+                    <g transform="translate(80, 45)">
+                        <g class="pet-head">
+                            <!-- 羊角 (特有種的後彎角) -->
+                            <path d="M 8,-12 Q -5,-25 -10,-20" fill="none" stroke="#3E1C00" stroke-width="3" stroke-linecap="round"/>
+                            <path d="M 12,-10 Q 0,-30 -8,-25" fill="none" stroke="#5C2E0E" stroke-width="4" stroke-linecap="round"/>
+                            <!-- 後方耳朵 -->
+                            <ellipse cx="2" cy="-2" rx="8" ry="3.5" fill="#8C6239" transform="rotate(30, 2, -2)"/>
+                            
+                            <!-- 臉部基底 -->
+                            <circle cx="15" cy="-5" r="14" fill="#D4A373" stroke="#C28B5A" stroke-width="2"/>
+                            <!-- 淺色口鼻 -->
+                            <ellipse cx="23" cy="-2" rx="8" ry="6" fill="#FAEDCD"/>
+                            <circle cx="28" cy="-4" r="2" fill="#5C2E0E"/> <!-- 鼻子 -->
+                            <!-- 微笑 -->
+                            <path d="M 23,2 Q 25,4 27,1" fill="none" stroke="#5C2E0E" stroke-width="1.5" stroke-linecap="round"/>
+                            
+                            <!-- 水汪汪的黑眼睛 -->
+                            <circle cx="17" cy="-8" r="2.5" fill="#1A120B"/>
+                            <circle cx="18" cy="-9" r="1" fill="#FFFFFF"/>
+                            <!-- 腮紅 -->
+                            <ellipse cx="12" cy="-2" rx="3" ry="1.5" fill="#FF99A8" opacity="0.7"/>
+                            
+                            <!-- 前方耳朵 -->
+                            <ellipse cx="6" cy="-1" rx="8" ry="3.5" fill="#D4A373" stroke="#C28B5A" stroke-width="1" transform="rotate(20, 6, -1)"/>
+                        </g>
+                    </g>
+                </g>
+            </svg>
+        </div>
+    </div>
+
+    <div id="particle-container" class="fixed inset-0 pointer-events-none z-40 overflow-hidden"></div>
+
+    <div id="success-overlay" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center opacity-0 pointer-events-none transition-all duration-500">
+        <div class="bg-gradient-to-b from-[#3a2c1e] to-[#1a1108] border-2 border-amber-400 p-8 rounded-2xl max-w-md w-full mx-4 text-center shadow-2xl relative overflow-hidden transform scale-95 transition-transform duration-500" id="success-modal">
+            <div class="text-6xl mb-4">🐐🌊✨</div>
+            <h2 id="ui-success-title" class="text-2xl font-bold text-amber-100 mb-2 font-serif">解鎖成功！</h2>
+            <p id="ui-success-quote" class="text-amber-400 text-sm font-mono mb-6">"崖上之羊 · 崖下之浪"</p>
+            <div class="bg-black/40 p-4 rounded-lg border border-amber-900/40 text-left text-xs text-amber-200/90 leading-relaxed mb-6">
+                <p id="ui-success-p1">您已成功解開這把結合雙國工藝的古鎖！</p>
+                <p id="ui-success-p2" class="mt-2">台灣野山羊的堅韌攀登，與印尼傳統紋樣完美交融。鑰匙開啟的瞬間，也象徵著解開人生難關，迎向強大而和諧的力量。</p>
+            </div>
+            <button id="btn-success-close" class="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded-lg transition-colors shadow-lg">
+                再次鑑賞
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const i18n = {
+            tw: {
+                title: "台灣山羊古鎖 <span class='text-amber-500/70 text-lg'>× 南洋工藝</span>", sub: "Taiwan Serow & Indonesian Heritage Lock Simulator",
+                btnLang: "🌐 語言: 繁中", btnSoundOn: "🔊 操作音: 開", btnSoundOff: "🔇 操作音: 關",
+                btnXrayOff: "👁️ 關閉透視", btnXrayOn: "👁️ 內部透視", btnReset: "🔄 重置",
+                cTitle: "設計靈感來源", c0: "本裝置完美復刻台灣山羊古鎖的青銅質感與傳統構造，並結合印尼皇室蠟染圖騰 (Batik)。",
+                c1: "<b class='text-amber-400'>🐐 台灣野山羊</b>：特有種，具強大攀登能力，象徵堅韌與攀向高峰。",
+                c2: "<b class='text-amber-400'>🌊 破浪紋 (Parang)</b>：S型幾何海浪，象徵不屈不撓，與山羊攀登峭壁的堅韌完美呼應。",
+                c3: "<b class='text-amber-400'>🌸 棕櫚紋 (Kawung)</b>：十字交錯的橢圓，象徵純潔、圓滿。賦予古鎖鎖住平安的祝福。",
+                gTitle: "🔓 解鎖步驟指引", g1: "將鑰匙拖入鎖孔", g2: "向內推入，壓縮簧片", g3: "向左拖曳，拉開鎖樑",
+                sLock: "狀態: 鎖定中 (Locked)", sInsert: "狀態: 鑰匙置入中...", sReady: "狀態: 簧片收攏！可開啟鎖樑", sUnlock: "狀態: 已開鎖 (Unlocked)",
+                slKey: "🔑 鑰匙插入深度:", slLock: "🔓 鎖樑拉開距離:",
+                wsTitle: "🎨 客製化工坊 (Workshop)", ws3d: "3D 視角旋轉 (Parallax View)", wsMat: "鎖身材質 (Material)", wsPat: "鑲嵌圖騰 (Inlay Pattern)",
+                optMBro: "斑駁青銅 (Aged Bronze)", optMGold: "皇室黃金 (Royal Gold)", optMIron: "生鐵黑 (Forged Iron)",
+                optPPar: "Batik Parang (破浪紋)", optPKaw: "Batik Kawung (棕櫚十字紋)", optPNon: "無圖騰 (Plain Metallic)",
+                btnAmbOn: "關閉羊群環境音 (Ambient On)", btnAmbOff: "開啟羊群環境音 (Ambient Off)",
+                winTitle: "解鎖成功！", winQuote: "\"崖上之羊 · 崖下之浪\"",
+                winP1: "您已成功解開這把結合雙國工藝的古鎖！", winP2: "台灣野山羊的堅韌攀登，與印尼傳統紋樣完美交融。鑰匙開啟的瞬間，也象徵著解開人生難關，迎向強大而和諧的力量。", winBtn: "再次鑑賞",
+                tipHornT: "台灣野山羊", tipHornD: "特有種向後微彎的錐狀角，象徵堅韌不拔與攀登高峰的能力。",
+                tipBellyT: "南洋圖騰鑲嵌", tipBellyD: "融合印尼皇室 Batik 蠟染圖案，呈現跨國界的「新亞洲工藝」設計理念。",
+                tipKeyT: "雙向簧片原理", tipKeyD: "傳統中式鎖機關。插入鑰匙擠壓內部黃銅簧片，使其收攏後方能抽出鎖樑。",
+                mechTitle: "簧片鎖機械原理", mechDesc: "傳統中式古鎖多為<b>「簧片結構」</b>。<br><br>當鎖樑插入鎖身時，尾端兩片具彈性的<b>黃銅簧片</b>會向外撐開，卡死在鎖腔內。解鎖時，插入鑰匙並向內推，鑰匙前端的特殊凹槽能把撐開的簧片「夾緊/收合」。簧片收合後，鎖樑便能抽出。",
+                featTitle: "山羊古鎖工藝特點", feat1T: "一、向後彎曲角：", feat1D: "鎖身龍頭般生動的山羊頭部，完美復刻其終身不脫落的錐狀雙角。",
+                feat2T: "二、吉祥如意雕花：", feat2D: "鎖身飾以傳統銘文與紋樣，象徵長壽吉祥，具鎖住好運之意。",
+                petTip: "咩～點我！"
+            },
+            id: {
+                title: "Gembok Serow <span class='text-amber-500/70 text-lg'>× Seni Nusantara</span>", sub: "Simulasi Gembok Warisan Taiwan & Indonesia",
+                btnLang: "🌐 Bahasa: ID", btnSoundOn: "🔊 Suara: Nyala", btnSoundOff: "🔇 Suara: Mati",
+                btnXrayOff: "👁️ Tutup X-Ray", btnXrayOn: "👁️ Buka X-Ray", btnReset: "🔄 Ulangi",
+                cTitle: "Inspirasi Desain", c0: "Artefak fiksi yang menggabungkan Gembok Serow Taiwan dengan motif Batik tradisional Indonesia.",
+                c1: "<b class='text-amber-400'>🐐 Kambing Serow</b>: Spesies endemik, tangguh memanjat tebing, simbol ketangguhan.",
+                c2: "<b class='text-amber-400'>🌊 Parang</b>: Melambangkan kekuatan pantang menyerah seperti ombak laut.",
+                c3: "<b class='text-amber-400'>🌸 Kawung</b>: Melambangkan kesucian, kesempurnaan, dan harmoni alam semesta.",
+                gTitle: "🔓 Panduan Langkah Membuka", g1: "Masukkan kunci ke lubang", g2: "Dorong, tekan pegas", g3: "Geser kiri, tarik tuas",
+                sLock: "Status: Terkunci (Locked)", sInsert: "Status: Memasukkan kunci...", sReady: "Status: Pegas tertekan! Tarik tuas", sUnlock: "Status: Terbuka (Unlocked)",
+                slKey: "🔑 Kedalaman Kunci:", slLock: "🔓 Jarak Tarikan Tuas:",
+                wsTitle: "🎨 Bengkel Kustom (Workshop)", ws3d: "Rotasi 3D (Parallax View)", wsMat: "Bahan Gembok (Material)", wsPat: "Motif Ukiran (Inlay Pattern)",
+                optMBro: "Perunggu Usang (Bronze)", optMGold: "Emas Kerajaan (Royal Gold)", optMIron: "Besi Tempa (Forged Iron)",
+                optPPar: "Batik Parang (Ombak)", optPKaw: "Batik Kawung (Salib Aren)", optPNon: "Polos (Plain Metallic)",
+                btnAmbOn: "Matikan Suara Kambing (On)", btnAmbOff: "Nyalakan Suara Kambing (Off)",
+                winTitle: "Keberhasilan!", winQuote: "\"Kambing di Tebing · Ombak di Bawah\"",
+                winP1: "Anda telah berhasil membuka mahakarya dua budaya ini!", winP2: "Ketangguhan Kambing Taiwan berpadu dengan motif tradisional Indonesia. Melambangkan teratasinya rintangan hidup menuju harmoni.", winBtn: "Apresiasi Lagi",
+                tipHornT: "Kambing Serow Taiwan", tipHornD: "Tanduk melengkung melambangkan ketangguhan luar biasa dalam mendaki tebing curam.",
+                tipBellyT: "Ukiran Nusantara", tipBellyD: "Menggabungkan motif Batik Keraton Indonesia, menampilkan konsep 'Seni Asia Baru' lintas batas.",
+                tipKeyT: "Prinsip Pegas Ganda", tipKeyD: "Kunci tradisional. Kunci menekan pegas kuningan di dalam agar tuas gembok bisa ditarik.",
+                mechTitle: "Prinsip Mekanis Gembok Pegas", mechDesc: "Gembok Tiongkok kuno menggunakan <b>'struktur pegas'</b>.<br><br>Saat tuas dimasukkan, <b>pegas kuningan</b> mengembang dan mengunci. Saat didorong, alur khusus pada kunci akan 'menekan/merapatkan' pegas tersebut sehingga tuas bisa ditarik.",
+                featTitle: "Fitur Kerajinan Gembok Serow", feat1T: "1. Tanduk Melengkung:", feat1D: "Bentuk kepala kambing yang hidup, meniru tanduk kerucut yang tidak pernah lepas.",
+                feat2T: "2. Ukiran Keberuntungan:", feat2D: "Dihiasi dengan prasasti tradisional, melambangkan umur panjang dan mengunci nasib baik.",
+                petTip: "Mbee~ Klik saya!"
+            }
+        };
+
+        const state = {
+            keyPos: 0, shacklePos: 0, parallax: 0,
+            isXRay: false, isSound: true, isAmbientOn: false,
+            lang: 'tw', material: 'bronze', pattern: 'parang',
+            keyBaseX: 560, keyBaseY: 210,
+            springUncompressedD: {
+                top: "M 390,248 C 360,248 315,225 305,225 C 295,225 295,248 300,248", bottom: "M 390,248 C 360,248 315,271 305,271 C 295,271 295,248 300,248"
+            },
+            materials: {
+                bronze: ['#4a3b2c', '#735c45', '#8c735c', '#5c4a37', '#2d2217'],
+                iron: ['#2a2b2e', '#4a4b4e', '#5a5b5e', '#3a3b3e', '#1a1b1e'],
+                gold: ['#8b6508', '#daa520', '#ffec8b', '#ffd700', '#b8860b']
+            }
+        };
+
+        const el = {
+            keyGroup: document.getElementById('key-group'), shackleGroup: document.getElementById('shackle-group'),
+            springTop: document.getElementById('spring-top'), springBottom: document.getElementById('spring-bottom'),
+            brassPlate: document.getElementById('brass-plate'), plateCarvings: document.getElementById('plate-carvings'),
+            patternLayer: document.getElementById('px-pattern'), patternTargets: document.querySelectorAll('.pattern-fill-target'),
+            hotspots: document.getElementById('hotspots'), sliderKey: document.getElementById('slider-key'), sliderShackle: document.getElementById('slider-shackle'), sliderParallax: document.getElementById('slider-parallax'),
+            lblKeyPos: document.getElementById('lbl-key-pos'), lblShacklePos: document.getElementById('lbl-shackle-pos'), lblParallax: document.getElementById('lbl-parallax'),
+            statusDot: document.getElementById('status-dot'), successOverlay: document.getElementById('success-overlay'), successModal: document.getElementById('success-modal'),
+            btnSuccessClose: document.getElementById('btn-success-close'), btnLang: document.getElementById('btn-lang'),
+            btnSound: document.getElementById('btn-sound'), btnXray: document.getElementById('btn-xray'), btnReset: document.getElementById('btn-reset'), btnAmbient: document.getElementById('btn-ambient'),
+            selMat: document.getElementById('select-material'), selPat: document.getElementById('select-pattern'),
+            tooltip: document.getElementById('hotspot-tooltip'), tipTitle: document.getElementById('tooltip-title'), tipDesc: document.getElementById('tooltip-desc'),
+            particleContainer: document.getElementById('particle-container'),
+            pxShadow: document.getElementById('px-shadow'), pxBase: document.getElementById('px-base'), pxFrontPlate: document.getElementById('px-front-plate'), pxGoatHead: document.getElementById('px-goat-head'), pxShackleMount: document.getElementById('px-shackle-mount'),
+            pet: document.getElementById('desktop-pet'), petWrapper: document.getElementById('pet-wrapper'), petSvg: document.getElementById('pet-svg'), petTooltip: document.getElementById('pet-tooltip'),
+            grassArea: document.getElementById('grass-area')
+        };
+
+        function haptic(pattern) { if (navigator.vibrate) try { navigator.vibrate(pattern); } catch(e){} }
+        
+        let audioCtx = null;
+        let ambientInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // --- 純 Web Audio API 升級版逼真羊叫聲 ---
+        function playBaa() {
+            if (!state.isSound) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const lfo = audioCtx.createOscillator();
+            
+            // 使用鋸齒波(sawtooth)來模擬聲帶豐富的泛音
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(250, now + 0.4);
+            
+            // 羊叫聲特有的震音 (Vibrato) 調慢至 7Hz 更逼真
+            lfo.type = 'sine';
+            lfo.frequency.value = 7;
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 20; 
+            lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+            lfo.start(now); lfo.stop(now + 0.5);
+
+            // 加入低通濾波器，讓聲音聽起來像是在動物口腔內共鳴
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1500, now);
+            filter.frequency.linearRampToValueAtTime(800, now + 0.5);
+
+            // 音量包絡線 (Fade in & Fade out)
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+            osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            
+            osc.start(now); osc.stop(now + 0.5);
+        }
+
+        function playSound(type) {
+            if (!state.isSound) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            if (type === 'click') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(1200, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.09);
+            } else if (type === 'spring-scrape') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(250, now); osc.frequency.linearRampToValueAtTime(180, now + 0.15);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0.001, now + 0.15);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.16);
+            } else if (type === 'shackle-slide') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(90, now); osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.26);
+            } else if (type === 'unlock') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.35);
+            }
+        }
+
+        // 環境音效：偶爾傳來的羊群叫聲
+        function toggleAmbientSound() {
+            initAudio();
+            if (!state.isAmbientOn) {
+                state.isAmbientOn = true;
+                playBaa(); // 第一次立刻叫
+                ambientInterval = setInterval(() => { if(Math.random() > 0.4) playBaa(); }, 4500);
+                el.btnAmbient.classList.replace('bg-green-900/20', 'bg-amber-600/40');
+                el.btnAmbient.classList.replace('border-green-800/50', 'border-amber-400');
+            } else {
+                state.isAmbientOn = false;
+                if (ambientInterval) clearInterval(ambientInterval);
+                el.btnAmbient.classList.replace('bg-amber-600/40', 'bg-green-900/20');
+                el.btnAmbient.classList.replace('border-amber-400', 'border-green-800/50');
+            }
+            updateLang();
+        }
+
+        // --- 桌寵與草地 AI 系統 ---
+        const petAI = {
+            x: window.innerWidth / 2, targetX: window.innerWidth / 2,
+            state: 'idle', direction: 1, speed: 2.2, grasses: []
+        };
+
+        function spawnGrass() {
+            if (petAI.grasses.length > 3) return;
+            const grass = document.createElement('div');
+            grass.innerHTML = '<span class="text-4xl text-green-400 drop-shadow-md origin-bottom inline-block">🌿</span>';
+            grass.className = 'absolute bottom-0 flex justify-center items-end transition-transform duration-500 origin-bottom';
+            const padding = 50; const gx = Math.random() * (window.innerWidth - padding * 2) + padding;
+            grass.style.left = `${gx}px`;
+            grass.style.transform = 'translateX(-50%) scale(0)';
+            el.grassArea.appendChild(grass);
+            
+            requestAnimationFrame(() => { grass.style.transform = 'translateX(-50%) scale(1)'; });
+            petAI.grasses.push({ el: grass, x: gx });
+        }
+
+        function updatePetAI() {
+            if (petAI.state === 'idle') {
+                if (Math.random() < 0.01) { 
+                    if (petAI.grasses.length < 2 && Math.random() < 0.6) spawnGrass();
+                    
+                    if (petAI.grasses.length > 0) {
+                        const targetGrass = petAI.grasses[0];
+                        // 讓小羊的「嘴巴」對準草，而不是身體中心
+                        const offset = (petAI.x < targetGrass.x) ? -40 : 40;
+                        petAI.targetX = targetGrass.x + offset; 
+                    } else {
+                        petAI.targetX = Math.random() * (window.innerWidth - 100) + 50; 
+                    }
+                    petAI.state = 'running';
+                    el.pet.classList.add('pet-running');
+                    el.pet.classList.remove('pet-eating');
+                }
+            } else if (petAI.state === 'running') {
+                const dist = petAI.targetX - petAI.x;
+                if (Math.abs(dist) < 5) {
+                    petAI.state = 'idle';
+                    el.pet.classList.remove('pet-running');
+                    
+                    // 計算嘴巴的實際 X 座標
+                    const mouthX = petAI.x + (petAI.direction * 40);
+                    const grassIdx = petAI.grasses.findIndex(g => Math.abs(g.x - mouthX) < 30);
+                    
+                    if (grassIdx !== -1) {
+                        // 找到草了，開始吃！
+                        petAI.state = 'eating';
+                        el.pet.classList.add('pet-eating');
+                        
+                        setTimeout(() => {
+                            if (petAI.grasses[grassIdx] && petAI.grasses[grassIdx].el.parentNode) {
+                                petAI.grasses[grassIdx].el.style.transform = 'translateX(-50%) scale(0)';
+                                setTimeout(() => {
+                                    if (petAI.grasses[grassIdx]) petAI.grasses[grassIdx].el.remove();
+                                    petAI.grasses.splice(grassIdx, 1);
+                                }, 500);
+                            }
+                            petAI.state = 'idle';
+                            el.pet.classList.remove('pet-eating');
+                            if (Math.random() > 0.5) playBaa(); // 吃完開心叫
+                        }, 2500);
+                    }
+                } else {
+                    petAI.direction = dist > 0 ? 1 : -1;
+                    petAI.x += petAI.speed * petAI.direction;
+                    // SVG 本身向右看，所以向左走時 scaleX(-1)
+                    el.petWrapper.style.transform = `scaleX(${petAI.direction > 0 ? 1 : -1})`;
+                }
+            }
+            
+            el.pet.style.left = `${petAI.x}px`;
+            requestAnimationFrame(updatePetAI);
+        }
+
+        spawnGrass();
+        requestAnimationFrame(updatePetAI);
+        window.addEventListener('resize', () => { if (petAI.x > window.innerWidth) petAI.x = window.innerWidth - 50; });
+
+        // 點擊互動
+        el.pet.addEventListener('click', () => {
+            initAudio(); playBaa(); haptic([15, 30, 15]);
+            el.petSvg.classList.add('pet-jump');
+            setTimeout(() => { el.petSvg.classList.remove('pet-jump'); }, 200);
+            
+            const p = document.createElement('div');
+            p.innerText = '💖';
+            p.className = 'absolute -top-10 text-xl pointer-events-none transition-all duration-700 z-50';
+            el.pet.appendChild(p);
+            setTimeout(() => { p.style.transform = 'translateY(-30px)'; p.style.opacity = '0'; }, 50);
+            setTimeout(() => { p.remove(); }, 800);
+        });
+
+        // --- 4. 語言更新 ---
+        function updateLang() {
+            const t = i18n[state.lang];
+            document.getElementById('ui-title').innerHTML = t.title; document.getElementById('ui-subtitle').innerHTML = t.sub;
+            el.btnLang.innerHTML = t.btnLang; el.btnSound.innerHTML = state.isSound ? t.btnSoundOn : t.btnSoundOff;
+            el.btnXray.innerHTML = state.isXRay ? t.btnXrayOn : t.btnXrayOff; el.btnReset.innerHTML = t.btnReset;
+            document.getElementById('ui-btn-ambient').innerHTML = state.isAmbientOn ? t.btnAmbOn : t.btnAmbOff;
+            
+            document.getElementById('ui-concept-title').innerHTML = t.cTitle; document.getElementById('ui-concept-0').innerHTML = t.c0;
+            document.getElementById('ui-concept-1').innerHTML = t.c1; document.getElementById('ui-concept-2').innerHTML = t.c2; document.getElementById('ui-concept-3').innerHTML = t.c3;
+            document.getElementById('ui-guide-title').innerHTML = t.gTitle; document.getElementById('ui-step1-title').innerHTML = t.g1;
+            document.getElementById('ui-step2-title').innerHTML = t.g2; document.getElementById('ui-step3-title').innerHTML = t.g3;
+            document.getElementById('ui-slider-key').innerHTML = t.slKey; document.getElementById('ui-slider-lock').innerHTML = t.slLock;
+            
+            document.getElementById('ui-ws-title').innerHTML = t.wsTitle; document.getElementById('ui-ws-3d').childNodes[1].textContent = t.ws3d;
+            document.getElementById('ui-ws-mat').innerHTML = t.wsMat; document.getElementById('ui-ws-pat').innerHTML = t.wsPat;
+            document.getElementById('opt-m-bronze').innerHTML = t.optMBro; document.getElementById('opt-m-gold').innerHTML = t.optMGold; document.getElementById('opt-m-iron').innerHTML = t.optMIron;
+            document.getElementById('opt-p-parang').innerHTML = t.optPPar; document.getElementById('opt-p-kawung').innerHTML = t.optPKaw; document.getElementById('opt-p-none').innerHTML = t.optPNon;
+
+            document.getElementById('ui-mech-title').innerHTML = t.mechTitle; document.getElementById('ui-mech-desc').innerHTML = t.mechDesc;
+            document.getElementById('ui-feat-title').innerHTML = t.featTitle; document.getElementById('ui-feat-1-t').innerHTML = t.feat1T; document.getElementById('ui-feat-1-d').innerHTML = t.feat1D;
+            document.getElementById('ui-feat-2-t').innerHTML = t.feat2T; document.getElementById('ui-feat-2-d').innerHTML = t.feat2D;
+
+            document.getElementById('ui-success-title').innerHTML = t.winTitle; document.getElementById('ui-success-quote').innerHTML = t.winQuote;
+            document.getElementById('ui-success-p1').innerHTML = t.winP1; document.getElementById('ui-success-p2').innerHTML = t.winP2; el.btnSuccessClose.innerHTML = t.winBtn;
+
+            el.petTooltip.innerText = t.petTip;
+
+            if (state.lang === 'id') {
+                document.getElementById('svg-plate-title').textContent = "KAMBING"; document.getElementById('svg-plate-title').setAttribute('letter-spacing', '2');
+                document.getElementById('svg-plate-bl').textContent = "B"; document.getElementById('svg-plate-br').textContent = "A";
+                document.getElementById('svg-plate-tl').textContent = "I"; document.getElementById('svg-plate-tr').textContent = "K";
+            } else {
+                document.getElementById('svg-plate-title').textContent = "台灣山羊"; document.getElementById('svg-plate-title').setAttribute('letter-spacing', '4');
+                document.getElementById('svg-plate-bl').textContent = "吉"; document.getElementById('svg-plate-br').textContent = "祥";
+                document.getElementById('svg-plate-tl').textContent = "如"; document.getElementById('svg-plate-tr').textContent = "意";
+            }
+            updateUIStatusText();
+        }
+
+        // --- 5. 介面更新與動畫 ---
+        function applyMaterial() {
+            const colors = state.materials[state.material];
+            for (let i=1; i<=5; i++) { document.getElementById(`mat-s${i}`).setAttribute('stop-color', colors[i-1]); }
+        }
+        function applyPattern() {
+            if (state.pattern === 'none') {
+                el.patternTargets.forEach(path => { path.style.opacity = '0'; });
+            } else {
+                const url = state.pattern === 'parang' ? 'url(#batik-parang)' : 'url(#batik-kawung)';
+                el.patternTargets.forEach(path => {
+                    path.setAttribute('fill', url);
+                    path.style.opacity = path.getAttribute('data-op') || '0.8';
+                });
+            }
+        }
+        function applyParallax() {
+            const p = state.parallax; el.lblParallax.innerText = `${p}°`;
+            el.pxShadow.setAttribute('cx', 400 - (p * 0.2)); el.pxBase.style.transform = `translateX(${p * 0.2}px)`;
+            el.patternLayer.style.transform = `translateX(${p * 0.2}px)`; el.pxShackleMount.style.transform = `translateX(${p * 0.2}px)`;
+            document.getElementById('px-internal').style.transform = `translateX(${p * 0.2}px)`; el.pxFrontPlate.style.transform = `translateX(${p * 1.0}px)`;
+            el.pxGoatHead.setAttribute('transform', `translate(${420 + (p * 0.8)}, 70)`);
+        }
+
+        function updateUIStatusText() {
+            const t = i18n[state.lang]; const statusEl = document.getElementById('ui-status');
+            if (state.keyPos === 0) { statusEl.innerText = t.sLock; el.statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"; }
+            else if (state.keyPos < 100) { statusEl.innerText = t.sInsert; el.statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"; }
+            else if (state.keyPos === 100 && state.shacklePos < 100) { statusEl.innerText = t.sReady; el.statusDot.className = "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"; }
+            else { statusEl.innerText = t.sUnlock; el.statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500"; }
+        }
+
+        function updateUI() {
+            el.brassPlate.setAttribute('opacity', state.isXRay ? '0.1' : '1');
+            el.plateCarvings.setAttribute('opacity', state.isXRay ? '0.1' : '1');
+            if(state.isXRay) el.patternTargets.forEach(path => path.style.opacity = '0'); else applyPattern();
+            el.hotspots.classList.toggle('opacity-0', state.isXRay);
+
+            let currentX = state.keyBaseX, currentY = state.keyBaseY;
+            if (state.keyPos <= 50) {
+                const pct = state.keyPos / 50;
+                currentX = state.keyBaseX - (200 * pct); currentY = state.keyBaseY + (40 * pct); 
+            } else {
+                const pct = (state.keyPos - 50) / 50; currentX = 360 - (65 * pct); currentY = 250; 
+            }
+            el.keyGroup.setAttribute('transform', `translate(${currentX + state.parallax}, ${currentY})`); 
+
+            if (state.keyPos > 50) {
+                const compressFactor = (state.keyPos - 50) / 50; 
+                const midYTop = 225 + (21 * compressFactor); const midYBottom = 271 - (21 * compressFactor); 
+                el.springTop.setAttribute('d', `M 390,248 C 360,248 315,${midYTop} 305,${midYTop} C 295,${midYTop} 295,248 300,248`);
+                el.springBottom.setAttribute('d', `M 390,248 C 360,248 315,${midYBottom} 305,${midYBottom} C 295,${midYBottom} 295,248 300,248`);
+            } else {
+                el.springTop.setAttribute('d', state.springUncompressedD.top); el.springBottom.setAttribute('d', state.springUncompressedD.bottom);
+            }
+
+            el.shackleGroup.setAttribute('transform', `translate(${-(110 * (state.shacklePos / 100))}, 0)`);
+            document.getElementById('shackle-group-wrapper').style.transform = `translateX(${state.parallax * 0.2}px)`;
+
+            if (state.keyPos === 100 && state.shacklePos < 100) el.shackleGroup.classList.add('shackle-ready');
+            else el.shackleGroup.classList.remove('shackle-ready');
+
+            document.getElementById('step-1-card').classList.toggle('opacity-40', state.keyPos > 0);
+            document.getElementById('step-2-card').classList.toggle('opacity-40', state.keyPos === 0 || state.keyPos === 100);
+            document.getElementById('step-3-card').classList.toggle('opacity-40', state.keyPos < 100);
+
+            el.sliderShackle.disabled = (state.keyPos < 100);
+            el.sliderShackle.classList.toggle('cursor-not-allowed', state.keyPos < 100);
+            el.sliderShackle.classList.toggle('opacity-40', state.keyPos < 100);
+
+            el.lblKeyPos.innerText = `${state.keyPos}%`; el.lblShacklePos.innerText = `${state.shacklePos}%`;
+            el.sliderKey.value = state.keyPos; el.sliderShackle.value = state.shacklePos;
+            updateUIStatusText();
+
+            if (state.shacklePos === 100) triggerSuccessPopup();
+        }
+
+        let successTriggered = false;
+        function triggerSuccessPopup() {
+            if (successTriggered) return; successTriggered = true;
+            playSound('unlock'); haptic([50, 50, 100, 50, 150]); createParticles();
+            setTimeout(() => {
+                el.successOverlay.classList.remove('pointer-events-none', 'opacity-0'); el.successOverlay.classList.add('opacity-100');
+                el.successModal.classList.remove('scale-95'); el.successModal.classList.add('scale-100');
+            }, 800);
+        }
+
+        function createParticles() {
+            const colors = ['#f59e0b', '#fcf6ba', '#d97706'];
+            for(let i=0; i<40; i++) {
+                const p = document.createElement('div'); p.className = 'particle';
+                const size = Math.random() * 8 + 4; p.style.width = `${size}px`; p.style.height = `${size}px`;
+                p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]; p.style.left = `50%`; p.style.top = `40%`;
+                const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 200 + 50;
+                p.style.setProperty('--tx', `${Math.cos(angle) * distance}px`); p.style.setProperty('--ty', `${Math.sin(angle) * distance}px`);
+                el.particleContainer.appendChild(p); setTimeout(() => p.remove(), 1500);
+            }
+        }
+
+        // --- 6. 事件綁定 ---
+        el.btnLang.addEventListener('click', () => { state.lang = state.lang === 'tw' ? 'id' : 'tw'; playSound('click'); haptic([10]); updateLang(); });
+        el.btnAmbient.addEventListener('click', () => { toggleAmbientSound(); haptic([10]); });
+        el.btnXray.addEventListener('click', () => {
+            state.isXRay = !state.isXRay; playSound('click'); haptic([10]);
+            el.btnXray.classList.toggle('bg-amber-500'); el.btnXray.classList.toggle('text-black');
+            el.btnXray.classList.toggle('bg-amber-950/40'); el.btnXray.classList.toggle('text-amber-100');
+            updateLang(); updateUI();
+        });
+        el.btnSound.addEventListener('click', () => { state.isSound = !state.isSound; if(state.isSound) { initAudio(); playSound('click'); } updateLang(); });
+
+        el.selMat.addEventListener('change', (e) => { state.material = e.target.value; playSound('click'); applyMaterial(); });
+        el.selPat.addEventListener('change', (e) => { state.pattern = e.target.value; playSound('click'); applyPattern(); });
+        el.sliderParallax.addEventListener('input', (e) => { state.parallax = parseInt(e.target.value); applyParallax(); updateUI(); });
+
+        function resetLock() {
+            state.keyPos = 0; state.shacklePos = 0; successTriggered = false;
+            playSound('click'); haptic([20, 30, 20]); updateUI();
+        }
+        el.btnReset.addEventListener('click', resetLock);
+        el.btnSuccessClose.addEventListener('click', () => {
+            el.successOverlay.classList.add('pointer-events-none', 'opacity-0'); el.successOverlay.classList.remove('opacity-100');
+            el.successModal.classList.remove('scale-100'); el.successModal.classList.add('scale-95'); resetLock();
+        });
+
+        let lastHapticKey = 0;
+        el.sliderKey.addEventListener('input', (e) => {
+            initAudio(); const val = parseInt(e.target.value);
+            if (Math.abs(val - state.keyPos) > 4) playSound('spring-scrape');
+            if (Math.abs(val - lastHapticKey) > 15) { haptic([10]); lastHapticKey = val; }
+            state.keyPos = val; updateUI();
+        });
+        el.sliderShackle.addEventListener('input', (e) => {
+            initAudio(); const val = parseInt(e.target.value);
+            if (Math.abs(val - state.shacklePos) > 4) playSound('shackle-slide');
+            state.shacklePos = val; updateUI();
+        });
+
+        // 鑰匙拖曳
+        let isDragging = false, dragOriginX = 0, originalKeyPos = 0;
+        function startDrag(e) { initAudio(); isDragging = true; el.keyGroup.style.cursor = 'grabbing'; dragOriginX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX; originalKeyPos = state.keyPos; }
+        function drag(e) {
+            if (!isDragging) return;
+            const deltaX = (e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX) - dragOriginX;
+            const targetPercent = Math.max(0, Math.min(100, Math.round(originalKeyPos + (deltaX / -4.5))));
+            if (targetPercent !== state.keyPos) {
+                state.keyPos = targetPercent;
+                if (state.keyPos % 15 === 0) { playSound('spring-scrape'); haptic([15]); }
+                updateUI();
+            }
+            if (e.cancelable) e.preventDefault();
+        }
+        function endDrag() { if (!isDragging) return; isDragging = false; el.keyGroup.style.cursor = 'grab'; playSound('click'); }
+        el.keyGroup.addEventListener('mousedown', startDrag); el.keyGroup.addEventListener('touchstart', startDrag, { passive: true });
+        window.addEventListener('mousemove', drag); window.addEventListener('touchmove', drag, { passive: false });
+        window.addEventListener('mouseup', endDrag); window.addEventListener('touchend', endDrag);
+
+        // 鎖樑拖曳
+        let isShackleDragging = false, shackleDragOriginX = 0, originalShacklePos = 0;
+        function startShackleDrag(e) {
+            if (state.keyPos < 100) return;
+            initAudio(); isShackleDragging = true; el.shackleGroup.classList.add('shackle-grabbing');
+            shackleDragOriginX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX; originalShacklePos = state.shacklePos;
+        }
+        function shackleDrag(e) {
+            if (!isShackleDragging) return;
+            const deltaX = (e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX) - shackleDragOriginX;
+            const targetPercent = Math.max(0, Math.min(100, Math.round(originalShacklePos + (deltaX / -3.5))));
+            if (targetPercent !== state.shacklePos) {
+                state.shacklePos = targetPercent;
+                if (state.shacklePos % 10 === 0) { playSound('shackle-slide'); haptic([10]); }
+                updateUI();
+            }
+            if (e.cancelable) e.preventDefault();
+        }
+        function endShackleDrag() {
+            if (!isShackleDragging) return; isShackleDragging = false; el.shackleGroup.classList.remove('shackle-grabbing');
+            if (state.shacklePos > 60 && state.shacklePos < 100) {
+                let current = state.shacklePos;
+                const snapInterval = setInterval(() => { current += 2; state.shacklePos = Math.min(current, 100); updateUI(); if (state.shacklePos === 100) clearInterval(snapInterval); }, 20); 
+            } else if (state.shacklePos <= 60 && state.shacklePos > 0) {
+                let current = state.shacklePos;
+                const snapInterval = setInterval(() => { current -= 2; state.shacklePos = Math.max(current, 0); updateUI(); if (state.shacklePos === 0) clearInterval(snapInterval); }, 20); 
+            }
+        }
+        el.shackleGroup.addEventListener('mousedown', startShackleDrag); el.shackleGroup.addEventListener('touchstart', startShackleDrag, { passive: true });
+        window.addEventListener('mousemove', shackleDrag); window.addEventListener('touchmove', shackleDrag, { passive: false });
+        window.addEventListener('mouseup', endShackleDrag); window.addEventListener('touchend', endShackleDrag);
+
+        // 熱點
+        el.hotspots.querySelectorAll('circle').forEach(circle => {
+            const showTip = (e) => {
+                const infoType = circle.getAttribute('data-info'); const t = i18n[state.lang];
+                if (infoType === 'horn') { el.tipTitle.innerText = t.tipHornT; el.tipDesc.innerText = t.tipHornD; }
+                if (infoType === 'belly') { el.tipTitle.innerText = t.tipBellyT; el.tipDesc.innerText = t.tipBellyD; }
+                if (infoType === 'keyhole') { el.tipTitle.innerText = t.tipKeyT; el.tipDesc.innerText = t.tipKeyD; }
+                
+                el.tooltip.classList.remove('opacity-0', 'translate-y-4', 'scale-95'); el.tooltip.classList.add('opacity-100', 'translate-y-0', 'scale-100');
+                const svgRect = document.getElementById('lock-svg').getBoundingClientRect(); const wbRect = document.getElementById('workbench').getBoundingClientRect();
+                const cx = parseFloat(circle.getAttribute('cx')) + state.parallax; 
+                const cy = parseFloat(circle.getAttribute('cy'));
+                const relativeX = (cx / 800) * svgRect.width + (svgRect.left - wbRect.left); const relativeY = (cy / 400) * svgRect.height + (svgRect.top - wbRect.top);
+                el.tooltip.style.left = `${relativeX - 100}px`; el.tooltip.style.top = `${relativeY - 90}px`; haptic([5]);
+            };
+            const hideTip = () => { el.tooltip.classList.add('opacity-0', 'translate-y-4', 'scale-95'); el.tooltip.classList.remove('opacity-100', 'translate-y-0', 'scale-100'); };
+            circle.addEventListener('mouseenter', showTip); circle.addEventListener('mouseleave', hideTip);
+            circle.addEventListener('touchstart', (e) => { showTip(e); e.preventDefault(); }, {passive: false}); circle.addEventListener('touchend', hideTip);
+        });
+
+        updateLang(); applyMaterial(); applyPattern(); updateUI(); applyParallax();
+    </script>
+</body>
+</html>
